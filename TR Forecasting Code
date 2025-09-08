@@ -1,0 +1,41 @@
+import yfinance as yf
+import numpy as np
+
+# Download NASDAQ 100 Index data
+nq = yf.download('NQ=F', interval='1d', period = '5y')
+
+# Flatten MultiIndex columns
+nq.columns = [col[0] for col in nq.columns]
+
+# Calculate True Range
+nq['Prev Close'] = nq['Close'].shift(1)
+nq = nq.dropna(subset=['High', 'Low', 'Prev Close'])
+
+nq['TR'] = np.maximum.reduce([
+    nq['High'] - nq['Low'],
+    abs(nq['High'] - nq['Prev Close']),
+    abs(nq['Low'] - nq['Prev Close'])
+])
+
+# Display the last few rows to verify True Range calculation
+print(nq[['High', 'Low', 'Prev Close', 'TR']].tail())
+
+# Calculate 60-day rolling average of True Range
+nq['TR 60D'] = nq['TR'].rolling(window=60).mean()
+
+
+# Calculate rolling average of previous close for the same window and shift by 1
+nq['Prev Close Rolling Avg'] = nq['Prev Close'].rolling(window=60).mean().shift(1)
+
+# Calculate True Range % relative to previous close
+nq['TR %'] = (nq['TR'] / nq['Prev Close']) * 100
+
+# Calculate forecasted TR % using 60-day rolling average TR and rolling average Prev Close
+nq['TR Forecast'] = nq['TR'].rolling(window=60).mean()
+nq['Prev Close Rolling Avg'] = nq['Prev Close'].rolling(window=60).mean()
+
+nq['TR Forecast %'] = (nq['TR Forecast'] / nq['Prev Close Rolling Avg']) * 100
+
+print(f'Forecasted True Range for the next trading day is: {nq["TR Forecast"].iloc[-1]:.2f} points')
+print(f'Forecasted True Range % for the next trading day is: {nq["TR Forecast %"].iloc[-1]:.2f}%')
+
